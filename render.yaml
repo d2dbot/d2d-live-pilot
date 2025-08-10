@@ -1,0 +1,12 @@
+
+services:
+  - type: web
+    name: d2d-live-pilot
+    env: node
+    plan: starter
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 18
