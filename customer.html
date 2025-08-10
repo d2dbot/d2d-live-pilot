@@ -1,0 +1,106 @@
+
+<!doctype html>
+<html>
+<head><meta charset="UTF-8"><title>Customer Booker</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+body{font-family:system-ui;padding:16px;max-width:720px;margin:auto}
+label{display:block;margin-top:8px}
+input,select,button,textarea{padding:8px;margin-top:4px;width:100%}
+.code{font-family:monospace}
+.card{border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:12px 0}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #ddd}
+</style>
+</head>
+<body>
+<h2>Customer Booker</h2>
+<div class="card">
+  <h3>Login (OTP stub)</h3>
+  <label>Phone<input id="c_phone" placeholder="+855..." /></label>
+  <button onclick="reqOtp()">Request OTP</button>
+  <label>Code<input id="c_code" placeholder="123456" class="code"/></label>
+  <button onclick="verify()">Verify</button>
+  <div id="c_status"></div>
+</div>
+
+<div class="card">
+  <h3>Create Booking</h3>
+  <label>Pickup (lat,lng)<input id="pickup" placeholder="11.5564,104.9282" value="11.5564,104.9282"/></label>
+  <label>Drop (lat,lng)<input id="drop" placeholder="11.5678,104.9200" value="11.5678,104.9200"/></label>
+  <label>Service
+    <select id="service">
+      <option value="express">Express (45m)</option>
+      <option value="standard">Standard (3h)</option>
+      <option value="tuktuk">Tuk Tuk (4h)</option>
+    </select>
+  </label>
+  <label>COD (KHR)<input id="cod" type="number" value="0"/></label>
+  <label>Notes<textarea id="notes" placeholder="Handle with care"></textarea></label>
+  <button onclick="quote()">Get Quote</button>
+  <div id="quote"></div>
+  <button onclick="book()">Create Booking</button>
+</div>
+
+<div class="card">
+  <h3>My Bookings</h3>
+  <div id="list"></div>
+</div>
+
+<script>
+const api = (path, opts) => fetch(path, Object.assign({ headers: { 'Content-Type':'application/json' }}, opts)).then(r=>r.json());
+let phone = null;
+
+function reqOtp(){
+  const p = document.getElementById('c_phone').value.trim();
+  api('/api/otp/request',{method:'POST',body:JSON.stringify({phone:p})}).then(j=>{
+    document.getElementById('c_status').innerText = 'OTP sent (use 123456)';
+  });
+}
+function verify(){
+  phone = document.getElementById('c_phone').value.trim();
+  const code = document.getElementById('c_code').value.trim();
+  api('/api/otp/verify',{method:'POST',body:JSON.stringify({phone, code, role:'customer'})}).then(j=>{
+    document.getElementById('c_status').innerText = 'Logged in as ' + j.user.name;
+  });
+}
+function quote(){
+  const pickup = document.getElementById('pickup').value.trim();
+  const drop = document.getElementById('drop').value.trim();
+  const service = document.getElementById('service').value;
+  api(`/api/quote?pickup=${encodeURIComponent(pickup)}&drop=${encodeURIComponent(drop)}&service=${service}`)
+    .then(j=>{
+      document.getElementById('quote').innerHTML = `Distance: <b>${j.km}km</b> — Price: <b>${j.amount.toLocaleString()} ${j.currency}</b>`;
+    });
+}
+function book(){
+  if(!phone){ alert('Login first'); return; }
+  const pickup = document.getElementById('pickup').value.trim();
+  const drop = document.getElementById('drop').value.trim();
+  const service = document.getElementById('service').value;
+  const cod = parseInt(document.getElementById('cod').value||'0',10);
+  const notes = document.getElementById('notes').value;
+  api('/api/bookings',{method:'POST',body:JSON.stringify({customerPhone:phone, pickup, drop, service, cod, notes})})
+    .then(j=>{
+      refresh();
+      alert('Booking created: ' + j.id);
+    });
+}
+function refresh(){
+  api('/api/bookings').then(renderList);
+}
+function renderList(items){
+  const el = document.getElementById('list');
+  el.innerHTML = items.reverse().map(b=>`<div class="card">
+    <div><b>${b.id}</b> <span class="badge">${b.status}</span></div>
+    <div>Service: ${b.service} | COD: ${b.cod.toLocaleString()} KHR</div>
+    <div>Pickup: ${b.pickup.lat},${b.pickup.lng}</div>
+    <div>Drop: ${b.drop.lat},${b.drop.lng}</div>
+  </div>`).join('');
+}
+const socket = io();
+socket.on('booking_updated', refresh);
+socket.on('booking_created', refresh);
+refresh();
+</script>
+</body>
+</html>

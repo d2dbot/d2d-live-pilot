@@ -1,0 +1,57 @@
+
+<!doctype html>
+<html>
+<head><meta charset="UTF-8"><title>Driver Console</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+body{font-family:system-ui;padding:16px;max-width:720px;margin:auto}
+label{display:block;margin-top:8px}
+input,button{padding:8px;margin-top:4px;width:100%}
+.card{border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:12px 0}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #ddd}
+</style>
+</head>
+<body>
+<h2>Driver Console</h2>
+<div class="card">
+  <label>Driver ID<input id="drv" value="DRV1"/></label>
+  <button onclick="load()">Load Tasks</button>
+</div>
+<div class="card">
+  <h3>Tasks</h3>
+  <div id="tasks"></div>
+</div>
+
+<script>
+const api = (path, opts) => fetch(path, Object.assign({ headers: { 'Content-Type':'application/json' }}, opts)).then(r=>r.json());
+let driverId = 'DRV1';
+
+function load(){
+  driverId = document.getElementById('drv').value.trim() || 'DRV1';
+  api(`/api/driver/${driverId}/tasks`).then(render);
+}
+function render(items){
+  const el = document.getElementById('tasks');
+  if(!items.length){
+    el.innerHTML = 'No tasks yet. Ask someone to create a booking, then use Admin to Dispatch.';
+    return;
+  }
+  el.innerHTML = items.map(b=>`<div class="card">
+    <div><b>${b.id}</b> <span class="badge">${b.status}</span></div>
+    <div>Pickup: ${b.pickup.lat},${b.pickup.lng}</div>
+    <div>Drop: ${b.drop.lat},${b.drop.lng}</div>
+    <button onclick="upd('${b.id}','EN_ROUTE_PICKUP')">Go to Pickup</button>
+    <button onclick="upd('${b.id}','PICKED_UP')">Picked Up</button>
+    <button onclick="upd('${b.id}','EN_ROUTE_DROP')">Go to Drop</button>
+    <button onclick="upd('${b.id}','DELIVERED')">Delivered</button>
+  </div>`).join('');
+}
+function upd(id,status){
+  api(`/api/driver/${driverId}/bookings/${id}/status`,{method:'POST',body:JSON.stringify({status})}).then(load);
+}
+
+const socket = io();
+socket.on('booking_updated', load);
+</script>
+</body>
+</html>

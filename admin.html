@@ -1,0 +1,40 @@
+
+<!doctype html>
+<html>
+<head><meta charset="UTF-8"><title>Admin Panel</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+body{font-family:system-ui;padding:16px;max-width:840px;margin:auto}
+.card{border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin:12px 0}
+button{padding:8px 12px;margin:4px}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #ddd}
+</style>
+</head>
+<body>
+<h2>Admin Panel</h2>
+<div class="card">
+  <button onclick="refresh()">Refresh</button>
+  <div id="list"></div>
+</div>
+
+<script>
+const api = (p,opts)=>fetch(p,Object.assign({headers:{'Content-Type':'application/json'}},opts)).then(r=>r.json());
+function refresh(){ api('/api/bookings').then(render); }
+function dispatch(id){ api('/api/dispatch/'+id,{method:'POST'}).then(refresh); }
+function render(items){
+  const el = document.getElementById('list');
+  el.innerHTML = items.reverse().map(b=>`<div class="card">
+    <div><b>${b.id}</b> <span class="badge">${b.status}</span></div>
+    <div>${b.service} | COD: ${b.cod.toLocaleString()} KHR</div>
+    <div>Pickup: ${b.pickup.lat},${b.pickup.lng}</div>
+    <div>Drop: ${b.drop.lat},${b.drop.lng}</div>
+    <button onclick="dispatch('${b.id}')">Auto-Assign Driver</button>
+  </div>`).join('');
+}
+const socket = io();
+socket.on('booking_created', refresh);
+socket.on('booking_updated', refresh);
+refresh();
+</script>
+</body>
+</html>
